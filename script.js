@@ -534,13 +534,22 @@
     renderAccounts(CONFIG.accounts.groom, 'groomAccountList');
     renderAccounts(CONFIG.accounts.bride, 'brideAccountList');
 
-    // Accordion toggles
-    $$('.accordion-header').forEach((header) => {
-      header.addEventListener('click', () => {
-        const accordion = header.parentElement;
-        accordion.classList.toggle('active');
-      });
+// Accordion toggles
+$$('.accordion-header').forEach((header) => {
+  header.addEventListener('click', () => {
+    const accordion = header.parentElement;
+
+    // 다른 아코디언 닫기
+    $$('.account-accordion').forEach((item) => {
+      if (item !== accordion) {
+        item.classList.remove('active');
+      }
     });
+
+    // 현재 아코디언 열기/닫기
+    accordion.classList.toggle('active');
+  });
+});
 
     // Copy account delegates
     document.addEventListener('click', (e) => {
