@@ -313,6 +313,70 @@
   }
 
   /* ═══════════════════════════════════════════
+     Wedding Calendar (월 달력)
+     ═══════════════════════════════════════════ */
+
+  function toKoreanNumber(n) {
+    const digits = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+    if (n === 10) return '십';
+    if (n < 10) return digits[n];
+    return (n >= 20 ? digits[Math.floor(n / 10)] : '') + '십' + digits[n % 10];
+  }
+
+  function toKoreanOrdinal(n) {
+    const ones = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉'];
+    const tens = ['', '열', '스물', '서른'];
+    if (n === 20) return '스무';
+    return tens[Math.floor(n / 10)] + ones[n % 10];
+  }
+
+  function initWeddingCalendar() {
+    const body = $('#calendarBody');
+    if (!body) return;
+
+    const [y, m, d] = CONFIG.wedding.date.split('-').map(Number);
+    const [hh, mm] = CONFIG.wedding.time.split(':').map(Number);
+
+    // 상단 문구: 예) 일월의 / 아홉 번째 날.
+    const monthName = m === 6 ? '유월' : m === 10 ? '시월' : toKoreanNumber(m) + '월';
+    $('#calendarDateInfo').innerHTML = `${monthName}의<br>${toKoreanOrdinal(d)} 번째 날.`;
+
+    // 시간 라벨: 예) 오전 10시 40분
+    const period = hh < 12 ? '오전' : '오후';
+    const h12 = hh % 12 || 12;
+    const timeLabel = `${period} ${h12}시${mm ? ' ' + mm + '분' : ''}`;
+
+    const firstDay = new Date(y, m - 1, 1).getDay();
+    const lastDate = new Date(y, m, 0).getDate();
+    const prevLast = new Date(y, m - 1, 0).getDate();
+
+    const cells = [];
+    for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevLast - i, empty: true });
+    for (let i = 1; i <= lastDate; i++) cells.push({ day: i, empty: false });
+    while (cells.length % 7 !== 0) cells.push({ day: cells.length - lastDate - firstDay + 1, empty: true });
+
+    let html = '';
+    for (let w = 0; w < cells.length; w += 7) {
+      html += '<div class="calendar-week">';
+      cells.slice(w, w + 7).forEach((c, idx) => {
+        const cls = ['calendar-day'];
+        if (c.empty) cls.push('empty');
+        if (idx === 0) cls.push('sun');
+        if (idx === 6) cls.push('sat');
+        const selected = !c.empty && c.day === d;
+        if (selected) cls.push('selected');
+        html += `<div class="${cls.join(' ')}">`;
+        if (selected) html += '<div class="calendar-selected-bg"></div>';
+        html += `<span class="calendar-day-text">${c.day}</span>`;
+        if (selected) html += `<span class="calendar-time-label">${timeLabel}</span>`;
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    body.innerHTML = html;
+  }
+
+  /* ═══════════════════════════════════════════
      Story Section
      ═══════════════════════════════════════════ */
 
@@ -336,7 +400,6 @@
       const div = document.createElement('div');
       div.className = 'story-image-container fade-in-left';
       div.innerHTML = `<img src="${src}" alt="스토리 사진 ${i + 1}" loading="lazy">`;
-      div.addEventListener('click', () => openViewer(storyImages, i));
 
       if (i === 0) {
         topContainer.appendChild(div);
@@ -377,12 +440,26 @@
       div.style.setProperty('--delay', i);
       div.setAttribute('data-index', i);
       div.innerHTML = `<img src="${src}" alt="갤러리 사진 ${i + 1}" loading="lazy">`;
-      div.addEventListener('click', () => openViewer(galleryImages, i));
+      div.addEventListener('click', () => openViewer(galleryImages, i, { zoom: false }));
       grid.appendChild(div);
     });
 
-    // Update viewer total count
-    $('#totalCount').textContent = galleryImages.length;
+    // 9장까지만 보이고 더보기/접기
+    const VISIBLE_COUNT = 9;
+    const toggle = $('#galleryToggle');
+    if (toggle && galleryImages.length > VISIBLE_COUNT) {
+      grid.classList.add('collapsed');
+      toggle.classList.add('show');
+      toggle.addEventListener('click', () => {
+        const collapsed = grid.classList.toggle('collapsed');
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.querySelector('.gallery-toggle-text').textContent = collapsed ? '더보기' : '접기';
+        if (collapsed) {
+          // 접을 때 갤러리 위치로 스크롤 유지
+          $('#gallerySection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
 
     // Re-observe new elements for scroll animations
     observeNewElements();
@@ -397,19 +474,72 @@
   let touchStartX = 0;
   let touchEndX = 0;
 
-  function openViewer(images, index) {
-    viewerImages = images;
-    viewerIndex = index;
-    showViewerImage();
-    $('#photoViewer').classList.add('active');
+  let zoomEnabled = true;
+  let savedScrollY = 0;
+
+  function lockScroll() {
+    savedScrollY = window.scrollY || window.pageYOffset;
+    document.body.style.top = `-${savedScrollY}px`;
     document.body.classList.add('no-scroll');
   }
 
-  function closeViewer() {
-    $('#photoViewer').classList.remove('active');
+  function unlockScroll() {
     document.body.classList.remove('no-scroll');
+    document.body.style.top = '';
+    // 부드러운 스크롤 끄고 원래 위치로 즉시 복귀
+    const html = document.documentElement;
+    const prev = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    window.scrollTo(0, savedScrollY);
+    html.style.scrollBehavior = prev;
+  }
+
+  function openViewer(images, index, opts = {}) {
+    viewerImages = images;
+    viewerIndex = index;
+    zoomEnabled = opts.zoom !== false;
+    resetZoom();
+    showViewerImage();
+    $('#photoViewer').classList.toggle('single', images.length <= 1);
+    $('#photoViewer').classList.add('active');
+    lockScroll();
+  }
+
+  function closeViewer() {
+    if (!$('#photoViewer').classList.contains('active')) return;
+    $('#photoViewer').classList.remove('active');
+    unlockScroll();
+    resetZoom();
+  }
+
+  /* ─── 확대/축소 (핀치, 더블탭, 마우스 휠) ─── */
+  let zoomScale = 1;
+  let zoomX = 0;
+  let zoomY = 0;
+  const MAX_ZOOM = 4;
+
+  function applyZoom(animate) {
     const img = $('#viewerImage');
-    if (img) img.style.transform = '';
+    if (!img) return;
+    img.classList.toggle('no-transition', !animate);
+    img.classList.toggle('is-zoomed', zoomScale > 1);
+    img.style.transform = zoomScale === 1 ? '' : `translate(${zoomX}px, ${zoomY}px) scale(${zoomScale})`;
+  }
+
+  function clampPan() {
+    const img = $('#viewerImage');
+    if (!img) return;
+    const maxX = (img.clientWidth * (zoomScale - 1)) / 2;
+    const maxY = (img.clientHeight * (zoomScale - 1)) / 2;
+    zoomX = Math.max(-maxX, Math.min(maxX, zoomX));
+    zoomY = Math.max(-maxY, Math.min(maxY, zoomY));
+  }
+
+  function resetZoom() {
+    zoomScale = 1;
+    zoomX = 0;
+    zoomY = 0;
+    applyZoom(true);
   }
 
   function showViewerImage() {
@@ -424,6 +554,8 @@
   }
 
   function navigateViewer(direction) {
+    if (viewerImages.length <= 1) return;
+    resetZoom();
     const img = $('#viewerImage');
     img.classList.add('fade-out');
 
@@ -465,32 +597,126 @@
       if (e.key === 'ArrowRight') navigateViewer('next');
     });
 
-    // Touch swipe
-    let isSingleTouch = false;
+    // Touch: 핀치 줌 / 줌 상태 이동 / 스와이프 / 더블탭
     const content = $('#viewerContent');
+    let pinchStartDist = 0;
+    let pinchStartScale = 1;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panOriginX = 0;
+    let panOriginY = 0;
+    let isPinching = false;
+    let wasPinching = false;
+    let lastTap = 0;
+
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 
     content.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        isSingleTouch = true;
+      if (e.touches.length === 2 && zoomEnabled) {
+        isPinching = true;
+        wasPinching = true;
+        pinchStartDist = dist(e.touches);
+        pinchStartScale = zoomScale;
+      } else if (e.touches.length === 1) {
+        wasPinching = false;
         touchStartX = e.touches[0].clientX;
-      } else {
-        isSingleTouch = false;
+        panStartX = e.touches[0].clientX;
+        panStartY = e.touches[0].clientY;
+        panOriginX = zoomX;
+        panOriginY = zoomY;
       }
-    }, { passive: true });
+    }, { passive: false });
+
+    content.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      if (isPinching && e.touches.length === 2) {
+        zoomScale = Math.max(1, Math.min(MAX_ZOOM, pinchStartScale * dist(e.touches) / pinchStartDist));
+        clampPan();
+        applyZoom(false);
+      } else if (!isPinching && e.touches.length === 1 && zoomScale > 1) {
+        zoomX = panOriginX + (e.touches[0].clientX - panStartX);
+        zoomY = panOriginY + (e.touches[0].clientY - panStartY);
+        clampPan();
+        applyZoom(false);
+      }
+    }, { passive: false });
 
     content.addEventListener('touchend', (e) => {
-      if (!isSingleTouch) return;
-      touchEndX = e.changedTouches[0].clientX;
-      const diffX = touchStartX - touchEndX;
-      const swipeThreshold = 50;
+      if (isPinching) {
+        if (e.touches.length < 2) isPinching = false;
+        if (zoomScale <= 1.02) resetZoom();
+        return;
+      }
+      if (wasPinching || e.touches.length > 0) return;
 
-      if (Math.abs(diffX) > swipeThreshold) {
-        if (diffX > 0) {
-          navigateViewer('next');
+      const endX = e.changedTouches[0].clientX;
+      const now = Date.now();
+
+      // 더블탭: 2.5배 확대 / 원래대로
+      if (zoomEnabled && now - lastTap < 300 && Math.abs(endX - touchStartX) < 10) {
+        lastTap = 0;
+        if (zoomScale > 1) {
+          resetZoom();
         } else {
-          navigateViewer('prev');
+          zoomScale = 2.5;
+          applyZoom(true);
+        }
+        return;
+      }
+      lastTap = now;
+
+      // 확대 안 된 상태에서만 스와이프로 사진 넘김
+      if (zoomScale === 1) {
+        touchEndX = endX;
+        const diffX = touchStartX - touchEndX;
+        if (Math.abs(diffX) > 50) {
+          navigateViewer(diffX > 0 ? 'next' : 'prev');
         }
       }
+    });
+
+    // PC: 마우스 휠 확대, 더블클릭 토글, 드래그 이동
+    content.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!zoomEnabled) return;
+      zoomScale = Math.max(1, Math.min(MAX_ZOOM, zoomScale * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+      if (zoomScale <= 1.02) { resetZoom(); return; }
+      clampPan();
+      applyZoom(false);
+    }, { passive: false });
+
+    viewerImage.addEventListener('dblclick', () => {
+      if (!zoomEnabled) return;
+      if (zoomScale > 1) {
+        resetZoom();
+      } else {
+        zoomScale = 2.5;
+        applyZoom(true);
+      }
+    });
+
+    let mouseDragging = false;
+    viewerImage.addEventListener('mousedown', (e) => {
+      if (zoomScale <= 1) return;
+      e.preventDefault();
+      mouseDragging = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panOriginX = zoomX;
+      panOriginY = zoomY;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!mouseDragging) return;
+      zoomX = panOriginX + (e.clientX - panStartX);
+      zoomY = panOriginY + (e.clientY - panStartY);
+      clampPan();
+      applyZoom(false);
+    });
+    window.addEventListener('mouseup', () => { mouseDragging = false; });
+
+    // 배경 클릭 시 닫기 (확대 안 된 상태)
+    content.addEventListener('click', (e) => {
+      if (e.target === content && zoomScale === 1) closeViewer();
     });
   }
 
@@ -503,12 +729,101 @@
     $('#locationVenue').textContent = w.venue;
     $('#locationAddress').textContent = w.address;
     $('#locationMapImg').src = 'images/location/1.jpg';
-    $('#kakaoMapBtn').href = w.mapLinks.kakao || '#';
-    $('#naverMapBtn').href = w.mapLinks.naver || '#';
+    const mapContainer = $('#locationMapContainer');
+    if (mapContainer) {
+      mapContainer.addEventListener('click', () => openViewer(['images/location/1.jpg'], 0));
+    }
+    $('#kakaoMapBtn').href = w.mapLinks.kakao || `https://map.kakao.com/link/search/${encodeURIComponent(w.address)}`;
+    $('#naverMapBtn').href = w.mapLinks.naver || `https://map.naver.com/p/search/${encodeURIComponent(w.address)}`;
+
+    // 티맵: 앱 실행 (좌표 있으면 길안내, 없으면 장소 검색)
+    $('#tmapBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      const name = encodeURIComponent(w.placeName || w.venue);
+      const url = (w.lat && w.lng)
+        ? `tmap://route?goalname=${name}&goalx=${w.lng}&goaly=${w.lat}`
+        : `tmap://search?name=${encodeURIComponent(w.placeName || w.address)}`;
+      const start = Date.now();
+      window.location.href = url;
+      setTimeout(() => {
+        if (Date.now() - start < 2000 && !document.hidden) {
+          showToast('티맵 앱이 설치되어 있어야 합니다');
+        }
+      }, 1500);
+    });
+
+    initLiveMap();
 
     $('#copyAddressBtn').addEventListener('click', () => {
       copyToClipboard(w.address, '주소가 복사되었습니다');
     });
+  }
+
+  /* ═══════════════════════════════════════════
+     Live Map (네이버 지도 API 키 있으면 네이버, 없으면 구글 지도)
+     ═══════════════════════════════════════════ */
+
+  function initLiveMap() {
+    const el = $('#liveMap');
+    if (!el) return;
+    const w = CONFIG.wedding;
+    const clientId = (CONFIG.map && CONFIG.map.naverClientId) || '';
+
+    const showGoogle = () => {
+      // 좌표가 있으면 정확한 위치에 핀 + 장소명 라벨
+      const q = (w.lat && w.lng)
+        ? `${w.lat},${w.lng} (${w.placeName || w.venue})`
+        : (w.placeName ? `${w.placeName} ${w.address}` : w.address);
+      el.innerHTML = `<iframe src="https://maps.google.com/maps?q=${encodeURIComponent(q)}&hl=ko&z=16&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="예식장 지도"></iframe>`;
+    };
+
+    if (!clientId) {
+      showGoogle();
+      return;
+    }
+
+    window.__onNaverMapLoad = () => {
+      const draw = (lat, lng) => {
+        const pos = new naver.maps.LatLng(lat, lng);
+        const map = new naver.maps.Map(el, {
+          center: pos,
+          zoom: 16,
+          scrollWheel: false,
+          zoomControl: true,
+          zoomControlOptions: { position: naver.maps.Position.TOP_RIGHT, style: naver.maps.ZoomControlStyle.SMALL }
+        });
+        const marker = new naver.maps.Marker({ position: pos, map });
+        if (w.placeName) {
+          const info = new naver.maps.InfoWindow({
+            content: `<div style="padding:6px 10px;font-size:12px;white-space:nowrap;">${w.placeName}</div>`,
+            borderWidth: 0,
+            backgroundColor: '#fff',
+            anchorSize: new naver.maps.Size(8, 8)
+          });
+          info.open(map, marker);
+        }
+      };
+
+      if (w.lat && w.lng) {
+        draw(w.lat, w.lng);
+      } else if (naver.maps.Service) {
+        naver.maps.Service.geocode({ query: w.address }, (status, res) => {
+          const a = res && res.v2 && res.v2.addresses && res.v2.addresses[0];
+          if (status === naver.maps.Service.Status.OK && a) {
+            draw(parseFloat(a.y), parseFloat(a.x));
+          } else {
+            showGoogle();
+          }
+        });
+      } else {
+        showGoogle();
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder&callback=__onNaverMapLoad`;
+    script.onerror = showGoogle;
+    document.head.appendChild(script);
   }
 
   /* ═══════════════════════════════════════════
@@ -611,7 +926,6 @@ $$('.accordion-header').forEach((header) => {
     // Add animation classes to static elements
     const storyText = $('.story-text');
     const galleryTitle = $('.gallery-title');
-    const gallerySubtitle = $('.gallery-subtitle');
     const locationTitle = $('.location-title');
     const locationInfo = $('.location-info');
     const locationMap = $('.location-map-container');
@@ -620,7 +934,6 @@ $$('.accordion-header').forEach((header) => {
 
     if (storyText) storyText.classList.add('fade-in-right');
     if (galleryTitle) galleryTitle.classList.add('fade-in');
-    if (gallerySubtitle) gallerySubtitle.classList.add('fade-in');
     if (locationTitle) locationTitle.classList.add('fade-in');
     if (locationInfo) locationInfo.classList.add('fade-in');
     if (locationMap) locationMap.classList.add('scale-in');
@@ -650,6 +963,7 @@ $$('.accordion-header').forEach((header) => {
     setMetaTags();
     initCurtain();
     initHero();
+    initWeddingCalendar();
     initCountdown();
     initCalendar();
 

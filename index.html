@@ -65,7 +65,25 @@
         <div class="parents-info" id="heroParents"></div>
         <p class="venue" id="heroVenue"></p>
 
-        
+        <!-- ─── 캘린더 (config.js 날짜로 자동 생성) ─── -->
+        <div class="calendar-section" id="calendarSection">
+          <p class="calendar-date-info" id="calendarDateInfo"></p>
+          <div class="calendar-line"></div>
+          <div class="calendar">
+            <div class="calendar-header">
+              <div class="calendar-weekday sun">일</div>
+              <div class="calendar-weekday">월</div>
+              <div class="calendar-weekday">화</div>
+              <div class="calendar-weekday">수</div>
+              <div class="calendar-weekday">목</div>
+              <div class="calendar-weekday">금</div>
+              <div class="calendar-weekday sat">토</div>
+            </div>
+            <div class="calendar-body" id="calendarBody"></div>
+          </div>
+          <div class="calendar-line"></div>
+        </div>
+
         <div class="countdown-container">
           <div class="countdown-item">
             <span class="countdown-number" id="countdown-days">0</span>
@@ -110,9 +128,12 @@
 
     <!-- ─── 세번째 섹션: 갤러리 ─── -->
     <section class="section section-gallery" id="gallerySection">
-      <h2 class="gallery-title">갤러리</h2>
-      <p class="gallery-subtitle">사진을 클릭하시면 크게 보실 수 있습니다</p>
+      <h2 class="gallery-title">갤러리<br></h2>
       <div class="gallery-grid" id="galleryGrid"></div>
+      <button class="gallery-toggle" id="galleryToggle" type="button" aria-expanded="false">
+        <span class="gallery-toggle-text">더보기</span>
+        <svg class="gallery-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+      </button>
     </section>
 
     <!-- ─── 네번째 섹션: 오시는 길 ─── -->
@@ -123,13 +144,22 @@
         <p class="location-address" id="locationAddress"></p>
         <div class="location-buttons">
           <button class="copy-btn" id="copyAddressBtn">주소 복사</button>
-          <a href="#" class="map-btn kakao-btn" id="kakaoMapBtn" target="_blank" rel="noopener">카카오맵</a>
-          <a href="#" class="map-btn naver-btn" id="naverMapBtn" target="_blank" rel="noopener">네이버지도</a>
         </div>
       </div>
-      <div class="location-map-container">
+
+      <!-- 지도 (config.js 설정에 따라 네이버 지도 또는 구글 지도) -->
+      <div class="live-map-wrap">
+        <div class="live-map" id="liveMap" aria-label="예식장 위치 지도"></div>
+      </div>
+      <div class="nav-buttons">
+        <a href="#" class="nav-btn" id="naverMapBtn" target="_blank" rel="noopener"><span class="nav-dot naver"></span>네이버</a>
+        <a href="#" class="nav-btn" id="kakaoMapBtn" target="_blank" rel="noopener"><span class="nav-dot kakao"></span>카카오</a>
+        <a href="#" class="nav-btn" id="tmapBtn"><span class="nav-dot tmap"></span>티맵</a>
+      </div>
+      <div class="location-map-container" id="locationMapContainer">
         <img src="" alt="약도" class="location-map" id="locationMapImg">
       </div>
+      <p class="location-map-hint">약도를 누르면 크게 보실 수 있습니다</p>
     </section>
 
     <!-- ─── 다섯번째 섹션: 축의금 ─── -->

@@ -38,6 +38,10 @@ const CONFIG = {
     time: "10:40",
     venue: "비렌티 웨딩홀 3층 베르테홀",
     address: "충남 천안시 서북구 천안대로 1198-30",
+    placeName: "비렌티 웨딩홀&뷔페",  // 지도에 표시/검색할 장소명
+    // 좌표 (선택) - 비워두면 주소로 자동 검색. 티맵 길안내/네이버 지도 마커 정확도 향상
+    lat: 36.8478295,   // 위도 (비렌티 웨딩홀)
+    lng: 127.1591438,  // 경도
     mapLinks: {
       kakao: "https://place.map.kakao.com/245466707",
       naver: "https://naver.me/Ghbu0bVI"
@@ -52,6 +56,11 @@ const CONFIG = {
 
   // ── 오시는 길 ──
   // (mapLinks는 wedding 객체 내에 포함)
+  map: {
+    // 네이버 클라우드 플랫폼 Maps Client ID (ncpKeyId)
+    // 비워두면 구글 지도가 표시됩니다.
+    naverClientId: ""
+  },
 
   // ── 마음 전하실 곳 ──
   accounts: {
